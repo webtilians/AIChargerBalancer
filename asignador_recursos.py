@@ -64,15 +64,15 @@ class DemandPredictor:
 
 
 class ServidorSimulado:
-    def __init__(self, id):
-        self.id = id
-        self.carga = 0
-        self.arrancando = True  # Nuevo atributo para indicar si el servidor está arrancando
-        self.tiempo_arranque = 5 # segundos de retardo
-        print(f"Servidor {self.id}: Iniciando...")
-        time.sleep(self.tiempo_arranque)  # Simular tiempo de arranque
-        self.arrancando = False
-        print(f"Servidor {self.id}: Listo para procesar solicitudes.")
+    def __init__(self, num_servidores_inicial, demand_predictor):
+        self.num_servidores_max = 5
+        self.servidores = [ServidorSimulado(i) for i in range(num_servidores_inicial)]
+        self.demand_predictor = demand_predictor
+        self.umbral_escalado_superior = 5
+        self.umbral_escalado_inferior = 1
+        self.cola_solicitudes = queue.Queue()
+        self.intervalo_impresion = 10  # Imprimir cada 10 segundos
+        self.ultimo_tiempo_impresion = time.time()
 
     def procesar_solicitud(self, caracteristicas, timestamp):
         """
@@ -167,3 +167,16 @@ class AsignadorRecursos:
           self.crear_servidor()
       elif carga_total < self.umbral_escalado_inferior and len(self.servidores) > 1:
           self.eliminar_servidor()
+          self.imprimir_estado()
+    
+    def imprimir_estado(self):
+        """Imprime el estado actual de los servidores y la cola de solicitudes."""
+        ahora = time.time()
+        if ahora - self.ultimo_tiempo_impresion > self.intervalo_impresion:
+            print("\n--- Estado del Sistema ---")
+            for servidor in self.servidores:
+                print(f"Servidor {servidor.id}: Carga actual = {servidor.carga:.2f}, Arrancando = {servidor.arrancando}")
+            print(f"Longitud de la cola de solicitudes: {self.cola_solicitudes.qsize()}")
+            print("--------------------------\n")
+            self.ultimo_tiempo_impresion = ahora
+          
