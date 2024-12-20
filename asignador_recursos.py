@@ -1,27 +1,37 @@
 import queue
 import time
-import random
 from sklearn.linear_model import LinearRegression
 import numpy as np
 from tensorflow import keras
 from sklearn.model_selection import train_test_split
-
+import os
 class DemandPredictor:
-    def __init__(self):
-        self.model = self.crear_modelo()
+    def __init__(self, model_path="demand_predictor_model.h5"):
+        self.model_path = model_path
+        self.model = self.cargar_o_crear_modelo()
         self.trained = False
+
+    def cargar_o_crear_modelo(self):
+        """Carga el modelo desde el archivo si existe, de lo contrario crea uno nuevo."""
+        if os.path.exists(self.model_path):
+            model = keras.models.load_model(self.model_path)
+            self.trained = True
+            print("Modelo cargado desde el archivo.")
+            return model
+        else:
+            return self.crear_modelo()
 
     def crear_modelo(self):
         """Crea el modelo de red neuronal."""
         model = keras.Sequential([
-            keras.layers.Dense(128, activation='relu', input_shape=(4,)),  # Capa de entrada
-            keras.layers.Dense(64, activation='relu'),  # Capa oculta
-            keras.layers.Dense(1)  # Capa de salida (predicción de demanda)
+            keras.layers.Dense(128, activation='relu', input_shape=(4,)),
+            keras.layers.Dense(64, activation='relu'),
+            keras.layers.Dense(1)
         ])
-        model.compile(optimizer='adam', loss='mse')  # Optimizador Adam y error cuadrático medio
+        model.compile(optimizer='adam', loss='mse')
         return model
 
-    def train(self, X, y, epochs=50, validation_split=0.2):
+    def train(self, X, y, epochs=100, validation_split=0.2):
         """Entrena el modelo de red neuronal.
 
         Args:
@@ -33,34 +43,15 @@ class DemandPredictor:
         X = np.array(X)
         y = np.array(y)
 
-        # Dividir los datos en conjuntos de entrenamiento y validación
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=validation_split)
 
         self.model.fit(X_train, y_train, epochs=epochs, validation_data=(X_val, y_val))
         self.trained = True
         print("Modelo entrenado.")
 
-    def predict(self, features):
-        """Predice la demanda de recursos para una solicitud.
-
-        Args:
-            features (dict): Diccionario con las características de la solicitud.
-
-        Returns:
-            float: La demanda de recursos predicha.
-        """
-        if not self.trained:
-            print("Advertencia: El modelo no ha sido entrenado. Se devuelve una predicción por defecto.")
-            return 1.0
-
-        feature_vector = [
-            features["longitud"],
-            1 if features["tipo"] == "simple" else 0,
-            1 if features["tipo"] == "compleja" else 0,
-            1 if features["tipo"] == "codigo" else 0
-        ]
-        predicted_demand = self.model.predict(np.array([feature_vector]))[0][0]
-        return predicted_demand
+        # Guardar el modelo entrenado
+        self.model.save(self.model_path)
+        print(f"Modelo guardado en {self.model_path}")
 
 
 class ServidorSimulado:
