@@ -67,7 +67,12 @@ def procesar_solicitud():
         perfil = gestor_usuarios.obtener_perfil(user_id)
 
         # Asignar la solicitud a un servidor
+        inicio = time.time()
         servidor_id = asignador_recursos.asignar(user_id, caracteristicas)
+        fin = time.time()
+
+        # Registrar tiempo de asignación
+        tiempo_asignacion = fin - inicio
 
         # Actualizar el perfil del usuario basado en su historial
         gestor_usuarios.actualizar_perfil(user_id)
@@ -77,7 +82,8 @@ def procesar_solicitud():
             'user_id': user_id,
             'perfil': perfil,
             'servidor_asignado': servidor_id,
-            'caracteristicas': caracteristicas
+            'caracteristicas': caracteristicas,
+            'tiempo_asignacion': tiempo_asignacion
         }), 200
 
     except Exception as e:

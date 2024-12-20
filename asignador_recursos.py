@@ -67,23 +67,33 @@ class ServidorSimulado:
     def __init__(self, id):
         self.id = id
         self.carga = 0
+        self.arrancando = True  # Nuevo atributo para indicar si el servidor está arrancando
+        self.tiempo_arranque = 5 # segundos de retardo
+        print(f"Servidor {self.id}: Iniciando...")
+        time.sleep(self.tiempo_arranque)  # Simular tiempo de arranque
+        self.arrancando = False
+        print(f"Servidor {self.id}: Listo para procesar solicitudes.")
 
     def procesar_solicitud(self, caracteristicas, timestamp):
-      """
-      Simula el procesamiento de una solicitud y actualiza la carga del servidor.
-      """
-      print(f"Servidor {self.id}: Procesando solicitud. Características: {caracteristicas}")
+        """
+        Simula el procesamiento de una solicitud y actualiza la carga del servidor.
+        """
+        if self.arrancando:
+            print(f"Servidor {self.id}: No se puede procesar la solicitud, el servidor está arrancando.")
+            return
 
-      # Utilizar la longitud como un estimado del tiempo de procesamiento
-      tiempo_procesamiento = caracteristicas["longitud"] * 0.01
+        print(f"Servidor {self.id}: Procesando solicitud. Características: {caracteristicas}")
 
-      self.carga += tiempo_procesamiento
-      time.sleep(tiempo_procesamiento)
-      self.carga -= tiempo_procesamiento
+        # Utilizar la longitud como un estimado del tiempo de procesamiento
+        tiempo_procesamiento = caracteristicas["longitud"] * 0.01
 
-      # Calcular y registrar métricas de latencia
-      tiempo_respuesta = time.time() - timestamp
-      print(f"Servidor {self.id}: Solicitud completada. Tiempo de respuesta: {tiempo_respuesta:.4f} segundos. Carga actual: {self.carga:.2f}")
+        self.carga += tiempo_procesamiento
+        time.sleep(tiempo_procesamiento)
+        self.carga -= tiempo_procesamiento
+
+        # Calcular y registrar métricas de latencia
+        tiempo_respuesta = time.time() - timestamp
+        print(f"Servidor {self.id}: Solicitud completada. Tiempo de respuesta: {tiempo_respuesta:.4f} segundos. Carga actual: {self.carga:.2f}")
 
 class AsignadorRecursos:
     def __init__(self, num_servidores_inicial, demand_predictor):
@@ -92,7 +102,7 @@ class AsignadorRecursos:
         self.demand_predictor = demand_predictor
         self.umbral_escalado_superior = 5
         self.umbral_escalado_inferior = 1
-        self.cola_solicitudes = queue.Queue()  # Cola de solicitudes
+        self.cola_solicitudes = queue.Queue()
 
     def asignar(self, user_id, caracteristicas):
         """
@@ -108,26 +118,30 @@ class AsignadorRecursos:
         # Comprobar si es necesario escalar
         self.comprobar_escalado()
 
-        return "encolada"  # Devolver un estado en lugar de un ID de servidor
+        return "encolada"
 
     def procesar_solicitudes(self):
-      """
-      Procesa solicitudes de la cola, asignándolas a servidores libres.
-      """
-      servidor_elegido = min(self.servidores, key=lambda s: s.carga)
-      if servidor_elegido.carga == 0 and not self.cola_solicitudes.empty():
-          user_id, caracteristicas, predicted_demand, timestamp = self.cola_solicitudes.get()
-          print(f"Asignando solicitud de usuario {user_id} al servidor {servidor_elegido.id} con demanda predicha de: {predicted_demand}")
-          servidor_elegido.procesar_solicitud(caracteristicas, timestamp)
-          self.cola_solicitudes.task_done()
+        """
+        Procesa solicitudes de la cola, asignándolas a servidores libres.
+        """
+        servidor_elegido = min(self.servidores, key=lambda s: s.carga)
+        # Solo asignar la solicitud si el servidor no está arrancando y hay solicitudes en la cola
+        if not servidor_elegido.arrancando and not self.cola_solicitudes.empty():
+            user_id, caracteristicas, predicted_demand, timestamp = self.cola_solicitudes.get()
+            print(f"Asignando solicitud de usuario {user_id} al servidor {servidor_elegido.id} con demanda predicha de: {predicted_demand}")
+            servidor_elegido.procesar_solicitud(caracteristicas, timestamp)
+            self.cola_solicitudes.task_done()
 
     def crear_servidor(self):
-      """
-      Añade un nuevo servidor a la lista de servidores.
-      """
-      nuevo_servidor_id = len(self.servidores)
-      self.servidores.append(ServidorSimulado(nuevo_servidor_id))
-      print(f"Nuevo servidor creado con ID {nuevo_servidor_id}. Total de servidores: {len(self.servidores)}")
+        """
+        Añade un nuevo servidor a la lista de servidores.
+        """
+        if len(self.servidores) < self.num_servidores_max:
+            nuevo_servidor_id = len(self.servidores)
+            self.servidores.append(ServidorSimulado(nuevo_servidor_id))
+            print(f"Nuevo servidor creado con ID {nuevo_servidor_id}. Total de servidores: {len(self.servidores)}")
+        else:
+            print(f"No se pueden crear más servidores. Se ha alcanzado el límite máximo de {self.num_servidores_max} servidores.")
 
     def eliminar_servidor(self):
         """
@@ -140,14 +154,16 @@ class AsignadorRecursos:
             print("No se pueden eliminar más servidores. Se ha alcanzado el mínimo de 1 servidor.")
 
     def comprobar_escalado(self):
-        """
-        Comprueba si la carga total de los servidores supera o cae por debajo de los umbrales definidos.
-        Escala el número de servidores en consecuencia.
-        """
-        carga_total = sum(s.carga for s in self.servidores)
-        print(f"Carga total del sistema: {carga_total:.2f}")
+      """
+      Comprueba si la carga total de los servidores supera o cae por debajo de los umbrales definidos.
+      Escala el número de servidores en consecuencia.
+      """
+      carga_total = sum(s.carga for s in self.servidores if not s.arrancando)
+      num_servidores_activos = sum(1 for s in self.servidores if not s.arrancando)
 
-        if carga_total > self.umbral_escalado_superior and len(self.servidores) < self.num_servidores_max:
-            self.crear_servidor()
-        elif carga_total < self.umbral_escalado_inferior and len(self.servidores) > 1:
-            self.eliminar_servidor()
+      print(f"Carga total del sistema: {carga_total:.2f}, servidores activos: {num_servidores_activos}")
+
+      if carga_total > self.umbral_escalado_superior and len(self.servidores) < self.num_servidores_max:
+          self.crear_servidor()
+      elif carga_total < self.umbral_escalado_inferior and len(self.servidores) > 1:
+          self.eliminar_servidor()
