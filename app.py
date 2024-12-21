@@ -4,6 +4,12 @@ from analizador_solicitudes import AnalizadorSolicitudes
 from asignador_recursos import AsignadorRecursos, DemandPredictor
 import numpy as np
 import time
+import tensorflow as tf
+
+# Forzar la habilitación de eager execution
+tf.config.run_functions_eagerly(True)
+
+print("Eager execution is enabled:", tf.executing_eagerly())
 
 
 app = Flask(__name__)
